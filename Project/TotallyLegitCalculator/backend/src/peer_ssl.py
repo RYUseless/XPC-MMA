@@ -4,10 +4,11 @@ import struct
 import sys
 import signal
 import select
+import ssl
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 # my modules:
-import src.utils_config as json_util
+import utils_config as json_util
 
 MY_PORT = json_util.load_config()["MY_PORT"]
 PEER_IP = json_util.load_config()["PEER_IP"]
@@ -51,6 +52,14 @@ class Peer_connection:
         self.running = True
         self.lock = threading.Lock()
         signal.signal(signal.SIGINT, self.signal_handler)
+        # Přidání SSL kontextů pro TLS
+        self.ssl_context_server = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        self.ssl_context_client = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+        # Načtěte svůj certifikát a klíč (vytvořte self-signed certifikát)
+        self.ssl_context_server.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
+        # Pro testování klienta vypněte ověřování certifikátu (NEPRODUKČNÍ)
+        self.ssl_context_client.check_hostname = False
+        self.ssl_context_client.verify_mode = ssl.CERT_NONE
 
     def signal_handler(self, sig, frame):
         print("\n[*] Ctrl+C zachycen, odesílám ukončovací zprávu...")
@@ -78,26 +87,30 @@ class Peer_connection:
 
     def connect_or_listen(self):
         try:
-            self.sock = socket.create_connection((PEER_IP, MY_PORT), timeout=2)
-            self.sock.settimeout(None)
-            print(f"[+] Připojeno k {PEER_IP}:{MY_PORT} jako klient")
+            # Pokus o připojení jako klient
+            raw_sock = socket.create_connection((PEER_IP, MY_PORT), timeout=2)
+            raw_sock.settimeout(None)
+            # encapsulation pro socket do TLS klienta
+            self.sock = self.ssl_context_client.wrap_socket(raw_sock, server_hostname=PEER_IP)
+            print(f"[+] Připojeno k {PEER_IP}:{MY_PORT} jako klient (TLS)")
         except Exception:
             print("[*] Nelze se připojit, spuštěn server...")
-            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server.bind(('', MY_PORT))
-            server.listen(1)
-            self.sock, addr = server.accept()
-            self.sock.settimeout(None)
-            server.close()
-            print(f"[+] Připojeno od {addr} jako server")
+            # spuseteni serveru
+            server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_sock.bind(('', MY_PORT))
+            server_sock.listen(1)
+            raw_conn, addr = server_sock.accept()
+            server_sock.close()
+            # encapsulation pro socket do TLS serveru
+            self.sock = self.ssl_context_server.wrap_socket(raw_conn, server_side=True)
+            print(f"[+] Připojeno od {addr} jako server (TLS)")
 
     def receive_loop(self):
         while self.running:
             try:
                 data = decrypt_payload(self.sock)
                 if not data:
-                    # spojení uzavřeno
                     print("\n[*] Spojení ukončeno peerem.")
                     self.running = False
                     break
@@ -146,4 +159,9 @@ class Peer_connection:
         threading.Thread(target=self.receive_loop, daemon=True).start()
         self.send_loop()
 
-
+# for now, launching from here
+# this puppy needs:
+# openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+if __name__ == '__main__':
+    peer = Peer_connection()
+    peer.start()
