@@ -55,11 +55,13 @@ class Peer_connection:
         # Přidání SSL kontextů pro TLS
         self.ssl_context_server = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         self.ssl_context_client = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        # Načtěte svůj certifikát a klíč (vytvořte self-signed certifikát)
+        # načtení certifikátu a klíče (pro self signed)
         self.ssl_context_server.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
-        # Pro testování klienta vypněte ověřování certifikátu (NEPRODUKČNÍ)
-        self.ssl_context_client.check_hostname = False
-        self.ssl_context_client.verify_mode = ssl.CERT_NONE
+        # TLS klient: povinné ověření certifikátu a hostname
+        self.ssl_context_client.check_hostname = True
+        self.ssl_context_client.verify_mode = ssl.CERT_REQUIRED
+        # načtení certifikátu serveruu (nebo CA), kterému klient důvěřuje hopefully
+        self.ssl_context_client.load_verify_locations(cafile="cert.pem")
 
     def signal_handler(self, sig, frame):
         print("\n[*] Ctrl+C zachycen, odesílám ukončovací zprávu...")
@@ -95,7 +97,7 @@ class Peer_connection:
             print(f"[+] Připojeno k {PEER_IP}:{MY_PORT} jako klient (TLS)")
         except Exception:
             print("[*] Nelze se připojit, spuštěn server...")
-            # spuseteni serveru
+            # spuštění serveru
             server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock.bind(('', MY_PORT))
@@ -159,9 +161,11 @@ class Peer_connection:
         threading.Thread(target=self.receive_loop, daemon=True).start()
         self.send_loop()
 
-# for now, launching from here
-# this puppy needs:
-# openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+# pro nyní spouštěno jen z tudma
+# ssl gen:
+# openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+#   -keyout key.pem -out cert.pem \
+#   -config san.cnf
 if __name__ == '__main__':
     peer = Peer_connection()
     peer.start()
