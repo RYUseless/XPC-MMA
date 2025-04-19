@@ -1,14 +1,9 @@
-import struct
-import sys
-import json
+import src.utils_config as json_util
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-import src.utils_config as json_util
-"""
-two classes:
-AES_cipher → encrypts/decrypts sent/received messages (line 13)
-aes_key_gen → generates KEY and IV (line 53)
-"""
+import struct
+import sys
+import base64
 
 class AES_cipher:
     def __init__(self):
@@ -20,8 +15,6 @@ class AES_cipher:
             print(f"[!] Failed to load KEY/IV from config: {e}")
             sys.exit(1)
 
-    # here ide has issue with this method not being static or outside
-    # I simply dont want to have this method callabe outside of this class :)
     def recv_all(self, sock, n):
         data = b''
         while len(data) < n:
@@ -49,6 +42,27 @@ class AES_cipher:
             return b''
         cipher = AES.new(self.KEY, AES.MODE_CBC, self.IV)
         return unpad(cipher.decrypt(encrypted), AES.block_size)
+
+    def encrypt_string(self, data):
+        try:
+            padded_data = pad(data.encode('utf-8'), AES.block_size)
+            cipher = AES.new(self.KEY, AES.MODE_CBC, self.IV)
+            ciphertext = cipher.encrypt(padded_data)
+            return base64.b64encode(ciphertext).decode('utf-8')
+        except Exception as e:
+            print(f"[!] Chyba při šifrování stringu: {e}")
+            return None
+
+    def decrypt_string(self, data):
+        try:
+            decoded_data = base64.b64decode(data)
+            cipher = AES.new(self.KEY, AES.MODE_CBC, self.IV)
+            decrypted = cipher.decrypt(decoded_data)
+            unpadded_data = unpad(decrypted, AES.block_size)
+            return unpadded_data.decode('utf-8')
+        except Exception as e:
+            print(f"[!] Chyba při dešifrování stringu: {e}")
+            return None
 
 class AES_key_gen:
     def __init__(self):

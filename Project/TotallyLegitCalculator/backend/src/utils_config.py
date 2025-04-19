@@ -2,6 +2,7 @@ import json
 import os
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '../config/config.json')
+BACKUP_PATH = os.path.join(os.path.dirname(__file__), '../config/backup.json')
 ##TODO: dodelat if none config.json, tak reset
 ##TODO: nejake dalsi try catche
 
@@ -40,6 +41,10 @@ def load_config():
 
 def update_config(key, value):
     config = load_config()
+    # save to backup
+    # TODO: udělat ještě check, ze existuje backup.json
+    with open(BACKUP_PATH, 'w') as f:
+        json.dump(config, f, indent=4)
     config[key] = value
     with open(CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=4)
@@ -79,12 +84,14 @@ def check_config():
             if not isinstance(config[key], expected_type):
                 print(f"[!] Invalid type for key: {key}, resetting config.")
                 reset_config()
-                # bullshitery:
-                check_config()
+                #TODO: it goes to endles loop, fix later:
+                value = check_config()
+                if value is False:
+                    exit(0)
                 print("key could not be restored, lmao?")
                 return False
 
-        # Kontrola HEX formátu a délky
+        #  HEX formát a délka check
         try:
             key_bytes = bytes.fromhex(config["KEY"])
             iv_bytes = bytes.fromhex(config["IV"])
@@ -99,4 +106,3 @@ def check_config():
         print(f"[!] Failed to read config: {e}, resetting.")
         reset_config()
         return False # big oopsie
-

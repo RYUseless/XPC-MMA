@@ -42,7 +42,6 @@ def main():
     if cert_ok is False:
         cert_utl.Generate().run()
 
-
     json_ok = json_utl.check_config()
     if json_ok is False:
         print("There is a possible issue with this code or config.json")
@@ -56,10 +55,7 @@ def main():
     per_ssl.start()
 
 
+
+
 if __name__ == '__main__':
     main()
-    # ssl gen:
-    # openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    #   -keyout key.pem -out cert.pem \
-    #   -config san.cnf
-
