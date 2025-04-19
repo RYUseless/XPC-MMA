@@ -5,8 +5,6 @@ if ! python3 -m venv .venv; then
   exit 1
 fi
 
-#!/bin/bash
-
 if [[ -f ./_activate_venv.sh ]]; then
     source ./_activate_venv.sh
 else
@@ -14,6 +12,11 @@ else
     exit 1
 fi
 
+# Pokud existuje requirements.txt, nainstaluj balíčky
+if [[ -f requirements.txt ]]; then
+    echo "Installing packages from requirements.txt..."
+    pip install -r requirements.txt
+else
+    echo "requirements.txt not found, skipping package installation."
+fi
 
-
-echo "Done I hope :)"
