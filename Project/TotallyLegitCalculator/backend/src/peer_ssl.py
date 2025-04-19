@@ -7,8 +7,10 @@ import select
 import ssl
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
+from pathlib import Path
 # my modules:
-import utils_config as json_util
+import src.utils_config as json_util
+import src.utils_crypto as crypto_util
 
 MY_PORT = json_util.load_config()["MY_PORT"]
 PEER_IP = json_util.load_config()["PEER_IP"]
@@ -16,54 +18,33 @@ KEY = bytes.fromhex(json_util.load_config()["KEY"])
 IV = bytes.fromhex(json_util.load_config()["IV"])
 SHUTDOWN_MSG = str(json_util.load_config()["SHUTDOWN_MSG"])
 
-def encrypt_payload(data: bytes) -> bytes:
-    cipher = AES.new(KEY, AES.MODE_CBC, IV)
-    ciphertext = cipher.encrypt(pad(data, AES.block_size))
-    return struct.pack('!I', len(ciphertext)) + ciphertext
-
-def recv_all(sock, n):
-    data = b''
-    while len(data) < n:
-        try:
-            part = sock.recv(n - len(data))
-        except socket.timeout:
-            continue
-        except Exception:
-            return None
-        if not part:
-            return None
-        data += part
-    return data
-
-def decrypt_payload(sock) -> bytes:
-    raw_len = recv_all(sock, 4)
-    if not raw_len:
-        return b''
-    length = struct.unpack('!I', raw_len)[0]
-    encrypted = recv_all(sock, length)
-    if not encrypted:
-        return b''
-    cipher = AES.new(KEY, AES.MODE_CBC, IV)
-    return unpad(cipher.decrypt(encrypted), AES.block_size)
-
 class Peer_connection:
     def __init__(self):
+        """Hovadiny pro komunikaci:"""
         self.sock = None
         self.running = True
         self.lock = threading.Lock()
         signal.signal(signal.SIGINT, self.signal_handler)
-        # Přidání SSL kontextů pro TLS
+        """CRYPTO MODUL"""
+        self.crypto_utils = crypto_util.AES_cipher()
+        """SSL CERTIFIKATY SHINANIGGANS"""
+        # relativní cesta k ssl certům → z /src do /.cert
+        base_dir = Path(__file__).resolve().parent
+        cert_dir = base_dir.parent / ".cert"
+        cert_path = cert_dir / "cert.pem"
+        key_path = cert_dir / "key.pem"
+        # pridani ssl certu do tls
         self.ssl_context_server = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         self.ssl_context_client = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-        # načtení certifikátu a klíče (pro self signed)
-        self.ssl_context_server.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
-        # TLS klient: povinné ověření certifikátu a hostname
+        # nacteni self signed certifikatu
+        self.ssl_context_server.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
+        # TLS klient: povinne overeni certu a hostname
         self.ssl_context_client.check_hostname = True
         self.ssl_context_client.verify_mode = ssl.CERT_REQUIRED
-        # načtení certifikátu serveruu (nebo CA), kterému klient důvěřuje hopefully
-        self.ssl_context_client.load_verify_locations(cafile="cert.pem")
+        # nacteni certifikatu
+        self.ssl_context_client.load_verify_locations(cafile=str(cert_path))
 
-    def signal_handler(self, sig, frame):
+    def signal_handler(self, _, __): #  sig, frame values removed, cause unused
         print("\n[*] Ctrl+C zachycen, odesílám ukončovací zprávu...")
         self.running = False
         self.send_shutdown()
@@ -73,7 +54,8 @@ class Peer_connection:
     def send_shutdown(self):
         try:
             with self.lock:
-                self.sock.sendall(encrypt_payload(SHUTDOWN_MSG.encode()))
+                #self.sock.sendall(encrypt_payload(SHUTDOWN_MSG.encode()))
+                self.sock.sendall(self.crypto_utils.encrypt_payload(SHUTDOWN_MSG.encode()))
         except Exception:
             pass
 
@@ -111,7 +93,8 @@ class Peer_connection:
     def receive_loop(self):
         while self.running:
             try:
-                data = decrypt_payload(self.sock)
+                # data = decrypt_payload(self.sock)
+                data = self.crypto_utils.decrypt_payload(self.sock)
                 if not data:
                     print("\n[*] Spojení ukončeno peerem.")
                     self.running = False
@@ -146,7 +129,8 @@ class Peer_connection:
                         self.send_shutdown()
                         break
                     with self.lock:
-                        self.sock.sendall(encrypt_payload(line.encode()))
+                        #self.sock.sendall(encrypt_payload(line.encode()))
+                        self.sock.sendall(self.crypto_utils.encrypt_payload(line.encode()))
                     print(">> ", end='', flush=True)
             except Exception as e:
                 if self.running:
@@ -160,12 +144,3 @@ class Peer_connection:
         self.connect_or_listen()
         threading.Thread(target=self.receive_loop, daemon=True).start()
         self.send_loop()
-
-# pro nyní spouštěno jen z tudma
-# ssl gen:
-# openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-#   -keyout key.pem -out cert.pem \
-#   -config san.cnf
-if __name__ == '__main__':
-    peer = Peer_connection()
-    peer.start()
