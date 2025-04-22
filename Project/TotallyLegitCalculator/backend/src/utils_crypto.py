@@ -67,3 +67,6 @@ class AES_cipher:
 class AES_key_gen:
     def __init__(self):
         self.dummy = "dummy"
+        #TODO: swap aby se aes heslo šifrovalo pomocí derivační šifry a tu si musí chatter pak dešifrovat
+        # tzn i změnit pak hore ten hex dump
+        
