@@ -30,10 +30,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  math_expressions: ^2.0.1 # Nebo nejnovější verze
-  bitsdojo_window: ^0.1.5
-  url_launcher: ^6.1.14 # Zkontroluj nejnovější verzi na pub.dev
-  flutter_displaymode: ^0.6.0 # Zkontroluj aktuální nejnovější verzi na pub.dev
+  math_expressions: ^2.4.0
+  url_launcher: ^6.1.11
+  bitsdojo_window: ^0.1.6
+  flutter_riverpod: ^2.1.1
+  window_manager: ^0.2.8
+  http: ^1.1.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

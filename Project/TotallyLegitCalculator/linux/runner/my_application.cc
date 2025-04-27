@@ -47,7 +47,8 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "cover_app");
   }
 
-  gtk_window_set_default_size(window, 450, 700);
+  gtk_window_resize(GTK_WINDOW(window), 400, 890);  // změna velikosti
+  gtk_window_move(GTK_WINDOW(window), 0, 0); 
   gtk_widget_show(GTK_WIDGET(window));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

@@ -3,7 +3,8 @@ from pathlib import Path
 import src.peer as pr
 import src.utils_config as json_utl
 import src.utils_cert as cert_utl
-import src.peer_ssl as pr_ssl
+#import src.peer_ssl as pr_ssl
+import src.peer_api as pr_api
 
 
 def check_cert_folder() -> bool:
@@ -48,14 +49,11 @@ def main():
         main()
         exit(1)
 
-    #peer = pr.Peer_connection()
-    #peer.start()
-
-    per_ssl = pr_ssl.Peer_connection()
-    per_ssl.start()
-
-
+    # Použití nové třídy Peer_API místo Peer_connection
+    peer = pr_api.Peer_API()
+    peer.start()
 
 
 if __name__ == '__main__':
     main()
+
