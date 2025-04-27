@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'Calculator_desktop.dart';
-import 'Settings_desktop.dart';
+//import 'Settings_desktop.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -9,7 +9,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 // Provider pro API službu
-final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
+final apiServiceProvider = Provider((ref) => ApiService());
 
 // Provider pro zprávy
 final messagesProvider = StateNotifierProvider<MessagesNotifier, List<Message>>(
@@ -51,7 +51,6 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
       isSentByMe: true,
     );
     state = [...state, newMessage];
-
     // Poté odešleme zprávu přes API
     final success = await _apiService.sendMessage(text);
     if (!success) {
@@ -83,7 +82,6 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
 // API služba pro komunikaci s backendem
 class ApiService {
   final String baseUrl;
-
   ApiService({this.baseUrl = 'http://localhost:8080/api'});
 
   Future<bool> sendMessage(String message) async {
@@ -93,7 +91,6 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'message': message}),
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['status'] == 'success';
@@ -108,7 +105,6 @@ class ApiService {
   Future<List<Message>> getMessages() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/messages'));
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
@@ -135,7 +131,6 @@ class ApiService {
   Future<List<Message>> getNewMessages() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/new-messages'));
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
@@ -182,7 +177,6 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'message': '==SHUTDOWN=='}),
       );
-
       return response.statusCode == 200;
     } catch (e) {
       print('Error sending shutdown message: $e');
@@ -202,14 +196,13 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
   // Proměnné pro uložení rozlišení -- placeholder, později získávat z pythonu
   final int screenWidth = 2560; // Šířka obrazovky
   final int screenHeight = 1440; // Výška obrazovky
-
   final TextEditingController _textController = TextEditingController();
   Timer? _connectionTimer;
-
   // Proměnné pro backend inicializaci
   String _backendPath = '';
   String _scriptOutput = '';
   Process? pythonProcess;
+  Process? configApiProcess; // Nová proměnná pro config API proces
   bool _isRunning = false;
   bool _isInitializing = true; // Indikuje, zda jsme ve fázi inicializace
   bool _connectionSuccessful = false; // Indikuje, zda bylo připojení úspěšné
@@ -220,7 +213,63 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _setWindowSize();
+      _startConfigApi(); // Spustíme config API při startu aplikace
     });
+  }
+
+  Future<void> _startConfigApi() async {
+    final scriptPath =
+        '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend/_start_config_backend.sh';
+    try {
+      setState(() {
+        _scriptOutput += 'Spouštím config API...\n';
+      });
+
+      configApiProcess = await Process.start(
+        'bash',
+        [scriptPath],
+        workingDirectory:
+            '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend',
+        runInShell: true, // Důležité pro správné zachycení výstupu
+      );
+
+      // Zachytávání standardního výstupu
+      configApiProcess!.stdout.transform(utf8.decoder).listen((data) {
+        setState(() {
+          _scriptOutput += data;
+        });
+        print("Config API stdout: $data"); // Pro debug
+      });
+
+      // Zachytávání chybového výstupu
+      configApiProcess!.stderr.transform(utf8.decoder).listen((data) {
+        setState(() {
+          _scriptOutput += 'Error: $data';
+        });
+        print("Config API stderr: $data"); // Pro debug
+      });
+
+      // Počkáme na dostupnost API
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(seconds: 1));
+        try {
+          final response = await http
+              .get(Uri.parse('http://localhost:8090/api/config'))
+              .timeout(const Duration(seconds: 1));
+          if (response.statusCode == 200) {
+            return;
+          }
+        } catch (_) {}
+      }
+
+      setState(() {
+        _scriptOutput += 'Config API server nebyl nalezen po 10s.\n';
+      });
+    } catch (e) {
+      setState(() {
+        _scriptOutput += 'Chyba při spouštění config API: $e\n';
+      });
+    }
   }
 
   Future<void> _setWindowSize() async {
@@ -239,14 +288,12 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       // Zjištění aktuálního pracovního adresáře
       final currentDir = Directory.current;
       print('Aktuální pracovní adresář: ${currentDir.path}');
-
       // Zkusíme najít backend složku různými způsoby
       List<String> possiblePaths = [
         '${currentDir.path}/backend',
         '${currentDir.path}/../backend',
         '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend',
       ];
-
       for (String path in possiblePaths) {
         final dir = Directory(path);
         if (dir.existsSync()) {
@@ -256,7 +303,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
           break;
         }
       }
-
       // Pokud jsme nenašli backend složku, zkusíme ji najít pomocí příkazu find
       if (_backendPath.isEmpty) {
         _findBackendUsingCommand();
@@ -277,7 +323,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
         '-type',
         'd',
       ]);
-
       if (result.stdout.toString().isNotEmpty) {
         final projectPath = result.stdout.toString().trim().split('\n').first;
         _backendPath = '$projectPath/backend';
@@ -298,27 +343,22 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
   Future<void> _runBackendScript() async {
     try {
       setState(() {
-        _scriptOutput += 'Found backend folder at: $_backendPath\n';
-        _scriptOutput += 'Attempting to run _venv_create.sh...\n';
+        _scriptOutput += 'Starting Peer connectuon \n';
         _isRunning = true;
       });
-
       pythonProcess = await Process.start('bash', [
-        '$_backendPath/_venv_create.sh',
+        '$_backendPath/_start_app.sh',
       ], workingDirectory: _backendPath);
-
       pythonProcess!.stdout.transform(utf8.decoder).listen((data) {
         setState(() {
           _scriptOutput += 'Output: $data\n';
         });
       });
-
       pythonProcess!.stderr.transform(utf8.decoder).listen((data) {
         setState(() {
           _scriptOutput += 'Error: $data\n';
         });
       });
-
       // Počkáme 2 sekundy a pak začneme kontrolovat připojení k API
       await Future.delayed(Duration(seconds: 2));
       _startConnectionCheck();
@@ -336,7 +376,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
         final response = await http
             .get(Uri.parse('http://localhost:8080/api/status'))
             .timeout(Duration(seconds: 2));
-
         if (response.statusCode == 200) {
           // API je připraveno, můžeme přejít do chat režimu
           _connectionTimer?.cancel();
@@ -349,7 +388,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
         // API ještě není připraveno, pokračujeme v kontrole
       }
     });
-
     // Nastavíme timeout pro případ, že se API nepodaří spustit
     Future.delayed(Duration(seconds: 30), () {
       if (!_connectionSuccessful) {
@@ -386,16 +424,20 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       pythonProcess = null;
       _isRunning = false;
     }
+
+    if (configApiProcess != null) {
+      print('Ukončuji Config API');
+      configApiProcess!.kill();
+      configApiProcess = null;
+    }
   }
 
   Future<void> _sendShutdownAndGoBack() async {
     try {
       // Odeslání zprávy ==SHUTDOWN== před návratem do coverApp
       await ref.read(apiServiceProvider).sendShutdownMessage();
-
       // Krátké čekání, aby se zpráva stihla odeslat
       await Future.delayed(Duration(milliseconds: 500));
-
       // Ukončení Python backendu
       _stopPythonBackend();
     } catch (e) {
@@ -414,7 +456,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
   void _sendMessage() {
     final text = _textController.text.trim(); // Oříznout text
     if (text.isEmpty) return; // Kontrola prázdného textu
-
     ref.read(messagesProvider.notifier).sendMessage(text).then((success) {
       if (success) {
         _textController.clear(); // Vyčistit textové pole po odeslání
@@ -579,7 +620,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
 
     // Pokud jsme ve fázi chatu, zobrazíme chat obrazovku
     final messages = ref.watch(messagesProvider);
-
     // Seřazení zpráv podle času (nejnovější nahoře)
     final sortedMessages = List<Message>.from(messages)
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));

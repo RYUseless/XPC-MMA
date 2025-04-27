@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+class SettingsScreenMobile extends StatefulWidget {
+  const SettingsScreenMobile({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  State<SettingsScreenMobile> createState() => _SettingsScreenMobileState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenMobileState extends State<SettingsScreenMobile> {
   final TextEditingController _myPortController = TextEditingController();
   final TextEditingController _peerIpController = TextEditingController();
   final TextEditingController _ownIpController = TextEditingController();
@@ -104,6 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+
     if (_errorMessage.isNotEmpty) {
       return Scaffold(
         appBar: AppBar(
@@ -113,6 +114,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         body: Center(child: Text(_errorMessage)),
       );
     }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -120,69 +122,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: Container(
         color: _isDarkTheme ? Colors.grey[900] : Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSectionHeader('Síťové nastavení'),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _myPortController,
-                label: 'MY_PORT',
-                hint: 'Zadejte port',
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _peerIpController,
-                label: 'PEER_IP',
-                hint: 'Zadejte IP druhého peeru',
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _ownIpController,
-                label: 'OWN_IP',
-                hint: 'Zadejte svou IP',
-              ),
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _shutdownMsgController,
-                label: 'SHUTDOWN_MSG',
-                hint: 'Zpráva pro ukončení spojení',
-              ),
-              const SizedBox(height: 24),
-              _buildSectionHeader('Vzhled aplikace'),
-              const SizedBox(height: 16),
-              _buildSwitchTile(
-                title: 'Tmavý režim',
-                value: _isDarkTheme,
-                onChanged: (value) {
-                  setState(() {
-                    _isDarkTheme = value;
-                  });
-                },
-              ),
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _saveConfig,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSectionHeader('Síťové nastavení'),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _myPortController,
+                  label: 'MY_PORT',
+                  hint: 'Zadejte port',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _peerIpController,
+                  label: 'PEER_IP',
+                  hint: 'Zadejte IP druhého peeru',
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _ownIpController,
+                  label: 'OWN_IP',
+                  hint: 'Zadejte svou IP',
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _shutdownMsgController,
+                  label: 'SHUTDOWN_MSG',
+                  hint: 'Zpráva pro ukončení spojení',
+                ),
+                const SizedBox(height: 24),
+                _buildSectionHeader('Vzhled aplikace'),
+                const SizedBox(height: 16),
+                _buildSwitchTile(
+                  title: 'Tmavý režim',
+                  value: _isDarkTheme,
+                  onChanged: (value) {
+                    setState(() {
+                      _isDarkTheme = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _saveConfig,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Uložit nastavení',
+                      style: TextStyle(fontSize: 16),
                     ),
                   ),
-                  child: const Text(
-                    'Uložit nastavení',
-                    style: TextStyle(fontSize: 16),
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
