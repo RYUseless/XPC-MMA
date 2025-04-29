@@ -19,12 +19,12 @@ class Generate:
         key_path = CERT_DIR / "key.pem"
         cert_path = CERT_DIR / "cert.pem"
 
-        # OPRAVA: Pokud certifikát i klíč existují, přeskoč generování!
+        # skip generovani, pokud existuji certy a klice
         if key_path.exists() and cert_path.exists():
             print(f"Certifikát a klíč už existují v {CERT_DIR}, generování přeskočeno.")
             return
 
-        ip_address = json_util.load_config()["OWN_IP"]
+        ip_address = json_util.Metods().load_config()["OWN_IP"]
 
         san_conf = f"""
         [req]

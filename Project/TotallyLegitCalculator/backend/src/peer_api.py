@@ -11,15 +11,14 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import time
 
 # Import vašich modulů
-import src.utils_config as json_util
 import src.utils_crypto as crypto_util
 import src.peer_ssl as peer_ssl
 
-API_PORT = 8080  # Port pro API server
 
 
 class Peer_API(peer_ssl.Peer_connection):
     def __init__(self):
+        self.API_PORT = 8080  # port API
         super().__init__()
         # Seznam nových zpráv pro API
         self.new_messages = []
@@ -38,7 +37,7 @@ class Peer_API(peer_ssl.Peer_connection):
             })
 
     def get_messages(self):
-        """Metoda pro získání všech zpráv z historie"""
+        # získání všech zpráv, které jsou uloženy v .old_mess/history.txt
         messages = []
         if self.chat_history_path.exists():
             with open(self.chat_history_path, "r", encoding="utf-8") as f:
@@ -56,7 +55,7 @@ class Peer_API(peer_ssl.Peer_connection):
         return messages
 
     def get_new_messages(self):
-        """Metoda pro získání nových zpráv od posledního volání"""
+        # get nových zpráv -- nových od posledního callu
         with self.new_messages_lock:
             # Filtrujeme pouze zprávy, které přišly od druhého uživatele (ne ty, které jsme sami odeslali)
             messages = [msg for msg in self.new_messages if not msg["isSentByMe"]]
@@ -65,7 +64,7 @@ class Peer_API(peer_ssl.Peer_connection):
         return messages
 
     def send_message_api(self, message):
-        """Metoda pro odeslání zprávy z API"""
+        # odeslání zpráv přijaté skrze API:
         try:
             with self.lock:
                 self.sock.sendall(self.crypto_utils.encrypt_payload(message.encode()))
@@ -76,7 +75,7 @@ class Peer_API(peer_ssl.Peer_connection):
             return False
 
     def start_api_server(self):
-        """Spustí API server pro komunikaci s Flutter aplikací"""
+        # API pro komunikaci s flutter appkou
         peer_connection = self
 
         class APIHandler(BaseHTTPRequestHandler):
@@ -102,7 +101,7 @@ class Peer_API(peer_ssl.Peer_connection):
                     self.wfile.write(json.dumps({"status": "success", "messages": messages}).encode())
                 elif self.path == "/api/status":
                     self._set_headers()
-                    # Pokud je spojení aktivní, vrátíme success
+                    # pokud aktivni, vrací se success
                     if peer_connection.running:
                         self.wfile.write(json.dumps({"status": "success"}).encode())
                     else:
@@ -132,21 +131,19 @@ class Peer_API(peer_ssl.Peer_connection):
                     self.send_response(404)
                     self.end_headers()
 
-        # Spuštění HTTP serveru v samostatném vlákně
-        server = HTTPServer(('localhost', API_PORT), APIHandler)
-        print(f"[+] API server běží na http://localhost:{API_PORT}")
+        # Spuštění HTTP serveru v samostatném vlákně -- separátní proces od peer connection
+        server = HTTPServer(('localhost', self.API_PORT), APIHandler)
+        print(f"[+] API server běží na http://localhost:{self.API_PORT}")
 
         api_thread = threading.Thread(target=server.serve_forever, daemon=True)
         api_thread.start()
 
     def start(self):
-        # Volání původní metody pro zachování funkcionality
         self.setup_ssl_contexts()
-        self.load_chat_history()
         self.connect_or_listen()
 
-        # Spuštění API serveru pro Flutter
+        # flutter api server
         self.start_api_server()
-
+        # vlakna a takk
         threading.Thread(target=self.receive_loop, daemon=True).start()
         self.send_loop()

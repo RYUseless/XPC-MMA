@@ -7,7 +7,7 @@ import select
 import ssl
 from pathlib import Path
 
-import src.utils_config as json_util
+import src.utils_config as jsn_utl
 import src.utils_crypto as crypto_util
 
 # Funkce pro určení BASE_DIR a CERT_DIR
@@ -19,12 +19,14 @@ def get_base_and_cert_dir():
     cert_dir = base_dir / ".cert"
     return base_dir, cert_dir
 
-MY_PORT = json_util.load_config()["MY_PORT"]
-PEER_IP = json_util.load_config()["PEER_IP"]
-SHUTDOWN_MSG = str(json_util.load_config()["SHUTDOWN_MSG"])
-
 class Peer_connection:
     def __init__(self):
+        json_util_ins = jsn_utl.Metods()
+        self.MY_PORT = json_util_ins.load_config()["MY_PORT"]
+        self.PEER_IP = json_util_ins.load_config()["PEER_IP"]
+        self.SHUTDOWN_MSG = str(json_util_ins.load_config()["SHUTDOWN_MSG"])
+        self.json_util = json_util_ins
+
         self.sock = None
         self.running = True
         self.lock = threading.Lock()
@@ -49,7 +51,7 @@ class Peer_connection:
         self.ssl_context_server = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         self.ssl_context_server.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
 
-        # Klient TLS kontext - vypnuto ověřování certifikátu (self-signed)
+        # Klient TLS kontext -- vypnuto overovani kvluli self-signed
         self.ssl_context_client = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         self.ssl_context_client.check_hostname = False
         self.ssl_context_client.verify_mode = ssl.CERT_NONE
@@ -61,13 +63,15 @@ class Peer_connection:
         self.cleanup()
         sys.exit(0)
 
+    # ukonceni komunikace
     def send_shutdown(self):
         try:
             with self.lock:
-                self.sock.sendall(self.crypto_utils.encrypt_payload(SHUTDOWN_MSG.encode()))
+                self.sock.sendall(self.crypto_utils.encrypt_payload(self.SHUTDOWN_MSG.encode()))
         except Exception:
             pass
 
+    # cleanup po ukonceni
     def cleanup(self):
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
@@ -78,7 +82,8 @@ class Peer_connection:
         except Exception:
             pass
 
-    def recv_all(self, sock, n):
+    @staticmethod
+    def recv_all(sock, n):
         data = b''
         while len(data) < n:
             part = sock.recv(n - len(data))
@@ -105,10 +110,9 @@ class Peer_connection:
             raise ConnectionError("Nelze přečíst certifikát")
         return cert_data
 
-    @staticmethod
-    def verify_and_update_peer_cert(peer_cert_bytes):
+    def verify_and_update_peer_cert(self, peer_cert_bytes):
         _, cert_dir = get_base_and_cert_dir()
-        peer_cert_path = cert_dir / f"peer_{PEER_IP.replace('.', '_')}.pem"
+        peer_cert_path = cert_dir / f"peer_{self.PEER_IP.replace('.', '_')}.pem"
 
         if peer_cert_path.exists():
             with open(peer_cert_path, "rb") as f:
@@ -143,8 +147,7 @@ class Peer_connection:
     def append_chat_history(self, msg, direction):
         try:
             # HUTDOWN_MSG z configu
-            shutdown_msg = str(json_util.load_config()["SHUTDOWN_MSG"])
-            if msg == shutdown_msg:
+            if msg == self.SHUTDOWN_MSG:
                 return  # Ignoruj a neukládej shutdown zprávy
 
             # if no .old_mess, create
@@ -159,12 +162,12 @@ class Peer_connection:
 
     def connect_or_listen(self):
         try:
-            raw_sock = socket.create_connection((PEER_IP, MY_PORT), timeout=2)
+            raw_sock = socket.create_connection((self.PEER_IP, self.MY_PORT), timeout=2)
             raw_sock.settimeout(None)
-            self.sock = self.ssl_context_client.wrap_socket(raw_sock, server_hostname=PEER_IP)
-            print(f"[+] Připojeno k {PEER_IP}:{MY_PORT} jako klient (TLS)")
+            self.sock = self.ssl_context_client.wrap_socket(raw_sock, server_hostname=self.PEER_IP)
+            print(f"[+] Připojeno k {self.PEER_IP}:{self.MY_PORT} jako klient (TLS)")
 
-            # Jako klient přijmu certifikát serveru, pak pošlu svůj
+            # klient prijme cert, pote posila svuj
             server_cert = self.recv_cert()
             self.send_cert()
             self.verify_and_update_peer_cert(server_cert)
@@ -173,14 +176,14 @@ class Peer_connection:
             print("[*] Nelze se připojit, spuštěn server...")
             server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_sock.bind(('', MY_PORT))
+            server_sock.bind(('', self.MY_PORT))
             server_sock.listen(1)
             raw_conn, addr = server_sock.accept()
             server_sock.close()
             self.sock = self.ssl_context_server.wrap_socket(raw_conn, server_side=True)
             print(f"[+] Připojeno od {addr} jako server (TLS)")
 
-            # Jako server pošlu certifikát, pak přijmu klientův
+            # server posila svuj cert, az pak prijima klientuv
             self.send_cert()
             client_cert = self.recv_cert()
             self.verify_and_update_peer_cert(client_cert)
@@ -194,7 +197,7 @@ class Peer_connection:
                     self.running = False
                     break
                 msg = data.decode()
-                if msg == SHUTDOWN_MSG:
+                if msg == self.SHUTDOWN_MSG:
                     print("\n[*] Peer ukončil spojení.")
                     self.running = False
                     break
@@ -235,9 +238,10 @@ class Peer_connection:
         self.cleanup()
         sys.exit(0)
 
+    # only for console sided version of peer connection (aka api does not call this)
     def start(self):
         self.setup_ssl_contexts()
-        self.load_chat_history()  # Načteme historii před připojením
+        self.load_chat_history()
         self.connect_or_listen()
         threading.Thread(target=self.receive_loop, daemon=True).start()
         self.send_loop()

@@ -8,14 +8,15 @@ import base64
 class AES_cipher:
     def __init__(self):
         try:
-            config = json_util.load_config()
+            config = json_util.Metods().load_config()
             self.KEY = bytes.fromhex(config["KEY"])
             self.IV = bytes.fromhex(config["IV"])
         except (KeyError, ValueError, json.JSONDecodeError, FileNotFoundError) as e:
             print(f"[!] Failed to load KEY/IV from config: {e}")
             sys.exit(1)
 
-    def recv_all(self, sock, n):
+    @staticmethod
+    def recv_all(sock, n):
         data = b''
         while len(data) < n:
             try:

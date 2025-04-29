@@ -41,13 +41,13 @@ def main():
     if cert_ok is False:
         cert_utl.Generate().run()
 
-    json_ok = json_utl.check_config()
+    json_ok = json_utl.Metods().check_config()
     if json_ok is False:
         print("There is a possible issue with this code or config.json")
         main()
         exit(1)
 
-    # Použití nové třídy Peer_API místo Peer_connection
+    # PEER API call
     peer = pr_api.Peer_API()
     peer.start()
 
