@@ -8,15 +8,13 @@ import subprocess
 
 import utils_config as json_util
 
+
 CONFIG_API_PORT = 8090
 
 
 # Funkce pro výpis do terminálu, který bude okamžitě viditelný v Dart
 def print_to_terminal(message):
-    # Použití echo příkazu, který je okamžitě viditelný
-    subprocess.Popen(['echo', f"\n=== {message} ==="], stdout=sys.stdout)
-    # Také použijeme standardní print s flush
-    #print(f"\n=== {message} ===", flush=True)
+    print(f"\n=== {message} ===", flush=True)
     sys.stdout.flush()
 
 
@@ -37,7 +35,6 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             self._set_headers()
             config = json_util.load_config()
             self.wfile.write(json.dumps(config).encode())
-            print_to_terminal(f"GET /api/config - Returning config: {config}")
         else:
             self.send_response(404)
             self.end_headers()
@@ -88,6 +85,10 @@ def kill_process_on_port(port):
 
 
 def run_config_api():
+    json_ok = json_util.check_config()
+    if json_ok is False:
+        print_to_terminal("There is a possible issue with this code or config.json")
+        exit(1)
     # Kontrola, zda je port již používán
     if is_port_in_use(CONFIG_API_PORT):
         print_to_terminal(f"Port {CONFIG_API_PORT} je již používán, pokus o ukončení...")

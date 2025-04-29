@@ -1,9 +1,7 @@
 from pathlib import Path
 # moje moduly:
-import src.peer as pr
 import src.utils_config as json_utl
 import src.utils_cert as cert_utl
-#import src.peer_ssl as pr_ssl
 import src.peer_api as pr_api
 
 

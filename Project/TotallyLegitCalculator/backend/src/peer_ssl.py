@@ -10,6 +10,15 @@ from pathlib import Path
 import src.utils_config as json_util
 import src.utils_crypto as crypto_util
 
+# Funkce pro určení BASE_DIR a CERT_DIR
+def get_base_and_cert_dir():
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
+    else:
+        base_dir = Path(__file__).resolve().parent.parent
+    cert_dir = base_dir / ".cert"
+    return base_dir, cert_dir
+
 MY_PORT = json_util.load_config()["MY_PORT"]
 PEER_IP = json_util.load_config()["PEER_IP"]
 SHUTDOWN_MSG = str(json_util.load_config()["SHUTDOWN_MSG"])
@@ -26,12 +35,11 @@ class Peer_connection:
         self.ssl_context_server = None
         self.ssl_context_client = None
 
-        # Cesta k souboru s historií chatu
-        self.chat_history_path = Path(__file__).resolve().parent.parent / ".old_mess" / "chat_history.txt"
+        base_dir, _ = get_base_and_cert_dir()
+        self.chat_history_path = base_dir / ".old_mess" / "chat_history.txt"
 
     def setup_ssl_contexts(self):
-        base_dir = Path(__file__).resolve().parent
-        cert_dir = base_dir.parent / ".cert"
+        _, cert_dir = get_base_and_cert_dir()
         cert_path = cert_dir / "cert.pem"
         key_path = cert_dir / "key.pem"
 
@@ -80,7 +88,8 @@ class Peer_connection:
         return data
 
     def send_cert(self):
-        cert_path = Path(__file__).resolve().parent.parent / ".cert" / "cert.pem"
+        _, cert_dir = get_base_and_cert_dir()
+        cert_path = cert_dir / "cert.pem"
         with open(cert_path, "rb") as f:
             cert_data = f.read()
         length = struct.pack('!I', len(cert_data))
@@ -98,7 +107,8 @@ class Peer_connection:
 
     @staticmethod
     def verify_and_update_peer_cert(peer_cert_bytes):
-        peer_cert_path = Path(__file__).resolve().parent.parent / ".cert" / f"peer_{PEER_IP.replace('.', '_')}.pem"
+        _, cert_dir = get_base_and_cert_dir()
+        peer_cert_path = cert_dir / f"peer_{PEER_IP.replace('.', '_')}.pem"
 
         if peer_cert_path.exists():
             with open(peer_cert_path, "rb") as f:
@@ -132,6 +142,15 @@ class Peer_connection:
 
     def append_chat_history(self, msg, direction):
         try:
+            # HUTDOWN_MSG z configu
+            shutdown_msg = str(json_util.load_config()["SHUTDOWN_MSG"])
+            if msg == shutdown_msg:
+                return  # Ignoruj a neukládej shutdown zprávy
+
+            # if no .old_mess, create
+            chat_dir = self.chat_history_path.parent
+            chat_dir.mkdir(parents=True, exist_ok=True)
+
             encrypted = self.crypto_utils.encrypt_string(msg)
             with open(self.chat_history_path, "a", encoding="utf-8") as f:
                 f.write(f"[{direction}] {encrypted}\n")
@@ -222,3 +241,4 @@ class Peer_connection:
         self.connect_or_listen()
         threading.Thread(target=self.receive_loop, daemon=True).start()
         self.send_loop()
+

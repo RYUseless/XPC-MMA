@@ -1,19 +1,31 @@
 import json
 import subprocess
+import sys
 from pathlib import Path
 import src.utils_config as json_util
-
 
 class Generate:
     @staticmethod
     def run():
-        # Cesta ke složce .cert → potřeba 2x zpět, aka 2x. parent
-        CERT_DIR = Path(__file__).parent.parent / ".cert"
+        BASE_DIR = Path(sys.executable).parent
+        if getattr(sys, 'frozen', False):
+            BASE_DIR = Path(sys.executable).parent
+        else:
+            BASE_DIR = Path(__file__).parent.parent
+
+        CERT_DIR = BASE_DIR / ".cert"
         CERT_DIR.mkdir(parents=True, exist_ok=True)
+
+        key_path = CERT_DIR / "key.pem"
+        cert_path = CERT_DIR / "cert.pem"
+
+        # OPRAVA: Pokud certifikát i klíč existují, přeskoč generování!
+        if key_path.exists() and cert_path.exists():
+            print(f"Certifikát a klíč už existují v {CERT_DIR}, generování přeskočeno.")
+            return
 
         ip_address = json_util.load_config()["OWN_IP"]
 
-        # Vytvoření san.cnf obsahu
         san_conf = f"""
         [req]
         distinguished_name = req_distinguished_name
@@ -38,10 +50,6 @@ class Generate:
 
         print(f"san.cnf vytvořen v {san_conf_path}")
 
-        # Spuštění openssl příkazu
-        key_path = CERT_DIR / "key.pem"
-        cert_path = CERT_DIR / "cert.pem"
-
         cmd = [
             "openssl", "req", "-x509", "-nodes", "-days", "365",
             "-newkey", "rsa:2048",
@@ -58,5 +66,6 @@ class Generate:
         else:
             print("Chyba při generování certifikátu:")
             print(result.stderr)
+
 
 

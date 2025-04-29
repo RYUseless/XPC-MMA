@@ -217,39 +217,54 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
     });
   }
 
-  Future<void> _startConfigApi() async {
-    final scriptPath =
-        '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend/_start_config_backend.sh';
+  Future _startConfigApi() async {
     try {
       setState(() {
         _scriptOutput += 'Spouštím config API...\n';
       });
 
+      // Najdi backend složku (zůstává, jak máš)
+      final currentDir = Directory.current;
+      List<String> possiblePaths = [
+        '${currentDir.path}/backend',
+        '${currentDir.path}/../backend',
+        '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend',
+      ];
+      for (String path in possiblePaths) {
+        final dir = Directory(path);
+        if (dir.existsSync()) {
+          _backendPath = path;
+          break;
+        }
+      }
+      if (_backendPath.isEmpty) {
+        setState(() {
+          _scriptOutput += 'Backend folder not found for config_api\n';
+        });
+        return;
+      }
+
+      // Spusť přímo binárku config_api
+      final configApiPath = '$_backendPath/dist/config_api';
       configApiProcess = await Process.start(
-        'bash',
-        [scriptPath],
-        workingDirectory:
-            '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend',
-        runInShell: true, // Důležité pro správné zachycení výstupu
+        configApiPath,
+        [],
+        workingDirectory: '$_backendPath/dist',
       );
 
-      // Zachytávání standardního výstupu
       configApiProcess!.stdout.transform(utf8.decoder).listen((data) {
         setState(() {
-          _scriptOutput += data;
+          _scriptOutput += '[config_api] $data';
         });
-        print("Config API stdout: $data"); // Pro debug
       });
 
-      // Zachytávání chybového výstupu
       configApiProcess!.stderr.transform(utf8.decoder).listen((data) {
         setState(() {
-          _scriptOutput += 'Error: $data';
+          _scriptOutput += '[config_api ERROR] $data';
         });
-        print("Config API stderr: $data"); // Pro debug
       });
 
-      // Počkáme na dostupnost API
+      // Počkej na start serveru (zkus 10s)
       for (int i = 0; i < 10; i++) {
         await Future.delayed(const Duration(seconds: 1));
         try {
@@ -257,6 +272,9 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
               .get(Uri.parse('http://localhost:8090/api/config'))
               .timeout(const Duration(seconds: 1));
           if (response.statusCode == 200) {
+            setState(() {
+              _scriptOutput += 'Config API server je připraven.\n';
+            });
             return;
           }
         } catch (_) {}
@@ -340,15 +358,19 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
     }
   }
 
-  Future<void> _runBackendScript() async {
+  Future _runBackendScript() async {
     try {
       setState(() {
-        _scriptOutput += 'Starting Peer connectuon \n';
+        _scriptOutput +=
+            '=== Starting peer connection (Waiting for other peer to connect) ===\n';
         _isRunning = true;
       });
-      pythonProcess = await Process.start('bash', [
-        '$_backendPath/_start_app.sh',
-      ], workingDirectory: _backendPath);
+      final appPath = '$_backendPath/dist/app';
+      pythonProcess = await Process.start(
+        appPath,
+        [],
+        workingDirectory: '$_backendPath/dist',
+      );
       pythonProcess!.stdout.transform(utf8.decoder).listen((data) {
         setState(() {
           _scriptOutput += 'Output: $data\n';
@@ -356,15 +378,14 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       });
       pythonProcess!.stderr.transform(utf8.decoder).listen((data) {
         setState(() {
-          _scriptOutput += 'Error: $data\n';
+          _scriptOutput += 'API INFO: $data\n';
         });
       });
-      // Počkáme 2 sekundy a pak začneme kontrolovat připojení k API
       await Future.delayed(Duration(seconds: 2));
       _startConnectionCheck();
     } catch (e) {
       setState(() {
-        _scriptOutput += 'Error running script: $e\n';
+        _scriptOutput += 'Error running app: $e\n';
         _isRunning = false;
       });
     }

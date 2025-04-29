@@ -200,7 +200,7 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretMobileApp> {
   bool _connectionSuccessful = false;
   bool _isDarkTheme = true;
   String _backendPath = '';
-  String _tempBackendPath = '';
+  String _distBackendPath = '';
 
   @override
   void initState() {
@@ -217,167 +217,46 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretMobileApp> {
     try {
       // Získání cesty k dočasnému adresáři
       final tempDir = await getTemporaryDirectory();
-      _tempBackendPath = '${tempDir.path}/backend';
+      _backendPath = '${tempDir.path}/backend';
+      _distBackendPath = '$_backendPath/dist';
 
       setState(() {
-        _scriptOutput += 'Dočasná cesta pro backend: $_tempBackendPath\n';
+        _scriptOutput += 'Dočasná cesta pro backend: $_backendPath\n';
+        _scriptOutput += 'Backend dist složka: $_distBackendPath\n';
       });
 
-      // Vytvoření dočasného adresáře pro backend
-      final backendDir = Directory(_tempBackendPath);
-      if (await backendDir.exists()) {
-        await backendDir.delete(recursive: true);
+      // Vytvoření dist adresáře pro backend
+      final distDir = Directory(_distBackendPath);
+      if (await distDir.exists()) {
+        await distDir.delete(recursive: true);
       }
-      await backendDir.create(recursive: true);
+      await distDir.create(recursive: true);
 
-      // Výpis dostupných assetů
-      setState(() {
-        _scriptOutput += 'Kontroluji dostupné assety...\n';
-      });
-
-      // Kontrola, zda jsou skripty dostupné jako assety
+      // Extrakce zkompilované binárky app_console do dist
       try {
-        await rootBundle.loadString('backend/_start_config_android.sh');
+        final appConsoleBinary = await rootBundle.load(
+          'backend/dist/app_console',
+        );
+        final appConsoleFile = File('$_distBackendPath/app_console');
+        await appConsoleFile.writeAsBytes(
+          appConsoleBinary.buffer.asUint8List(),
+        );
+        await Process.run('chmod', ['+x', appConsoleFile.path]);
         setState(() {
           _scriptOutput +=
-              'Skript _start_config_android.sh nalezen v assets.\n';
+              'Backend app_console extrahován a nastaven jako spustitelný.\n';
         });
       } catch (e) {
         setState(() {
-          _scriptOutput +=
-              'Skript _start_config_android.sh není v assets: $e\n';
+          _scriptOutput += 'Chyba při extrakci backend/dist/app_console: $e\n';
         });
       }
 
-      try {
-        await rootBundle.loadString('backend/_start_app.sh');
-        setState(() {
-          _scriptOutput += 'Skript _start_app.sh nalezen v assets.\n';
-        });
-      } catch (e) {
-        setState(() {
-          _scriptOutput += 'Skript _start_app.sh není v assets: $e\n';
-        });
-      }
-
-      // Extrakce skriptů z assetů do dočasného adresáře
-      try {
-        final configScriptContent = await rootBundle.loadString(
-          'backend/_start_config_android.sh',
-        );
-        final configScriptFile = File(
-          '$_tempBackendPath/_start_config_android.sh',
-        );
-        await configScriptFile.writeAsString(configScriptContent);
-        await Process.run('chmod', ['+x', configScriptFile.path]);
-
-        setState(() {
-          _scriptOutput +=
-              'Skript _start_config_android.sh extrahován a nastaven jako spustitelný.\n';
-        });
-      } catch (e) {
-        setState(() {
-          _scriptOutput += 'Chyba při extrakci _start_config_android.sh: $e\n';
-        });
-      }
-
-      try {
-        final appScriptContent = await rootBundle.loadString(
-          'backend/_start_app.sh',
-        );
-        final appScriptFile = File('$_tempBackendPath/_start_app.sh');
-        await appScriptFile.writeAsString(appScriptContent);
-        await Process.run('chmod', ['+x', appScriptFile.path]);
-
-        setState(() {
-          _scriptOutput +=
-              'Skript _start_app.sh extrahován a nastaven jako spustitelný.\n';
-        });
-      } catch (e) {
-        setState(() {
-          _scriptOutput += 'Chyba při extrakci _start_app.sh: $e\n';
-        });
-      }
-
-      // Extrakce dalších potřebných souborů
-      try {
-        final activateVenvContent = await rootBundle.loadString(
-          'backend/_activate_venv.sh',
-        );
-        final activateVenvFile = File('$_tempBackendPath/_activate_venv.sh');
-        await activateVenvFile.writeAsString(activateVenvContent);
-        await Process.run('chmod', ['+x', activateVenvFile.path]);
-
-        setState(() {
-          _scriptOutput +=
-              'Skript _activate_venv.sh extrahován a nastaven jako spustitelný.\n';
-        });
-      } catch (e) {
-        setState(() {
-          _scriptOutput += 'Chyba při extrakci _activate_venv.sh: $e\n';
-        });
-      }
-
-      try {
-        final requirementsContent = await rootBundle.loadString(
-          'backend/requirements.txt',
-        );
-        final requirementsFile = File('$_tempBackendPath/requirements.txt');
-        await requirementsFile.writeAsString(requirementsContent);
-
-        setState(() {
-          _scriptOutput += 'Soubor requirements.txt extrahován.\n';
-        });
-      } catch (e) {
-        setState(() {
-          _scriptOutput += 'Chyba při extrakci requirements.txt: $e\n';
-        });
-      }
-
-      // Vytvoření src adresáře
-      final srcDir = Directory('$_tempBackendPath/src');
-      await srcDir.create();
-
-      // Extrakce Python souborů
-      try {
-        final configApiContent = await rootBundle.loadString(
-          'backend/src/config_api.py',
-        );
-        final configApiFile = File('$_tempBackendPath/src/config_api.py');
-        await configApiFile.writeAsString(configApiContent);
-
-        setState(() {
-          _scriptOutput += 'Soubor config_api.py extrahován.\n';
-        });
-      } catch (e) {
-        setState(() {
-          _scriptOutput += 'Chyba při extrakci config_api.py: $e\n';
-        });
-      }
-
-      try {
-        final appPyContent = await rootBundle.loadString('backend/app.py');
-        final appPyFile = File('$_tempBackendPath/app.py');
-        await appPyFile.writeAsString(appPyContent);
-
-        setState(() {
-          _scriptOutput += 'Soubor app.py extrahován.\n';
-        });
-      } catch (e) {
-        setState(() {
-          _scriptOutput += 'Chyba při extrakci app.py: $e\n';
-        });
-      }
-
-      // Nastavení cesty k backendu
-      _backendPath = _tempBackendPath;
+      // Pokud máš další assety (config, .cert, .old_mess), extrahuj obdobně.
 
       setState(() {
-        _scriptOutput += 'Backend inicializován v: $_backendPath\n';
+        _scriptOutput += 'Backend dist inicializován v: $_distBackendPath\n';
       });
-
-      // Spuštění config API
-      _startConfigApi();
     } catch (e) {
       setState(() {
         _scriptOutput += 'Chyba při inicializaci backendu: $e\n';
@@ -396,7 +275,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretMobileApp> {
 
         final entities = await directory.list().toList();
 
-        // Nejprve vypíšeme adresáře
         final dirs = entities.where((e) => e is Directory).toList();
         if (dirs.isNotEmpty) {
           setState(() {
@@ -407,7 +285,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretMobileApp> {
           });
         }
 
-        // Potom vypíšeme soubory
         final files = entities.where((e) => e is File).toList();
         if (files.isNotEmpty) {
           setState(() {
@@ -439,105 +316,39 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretMobileApp> {
     }
   }
 
-  Future<void> _startConfigApi() async {
-    try {
-      setState(() {
-        _scriptOutput += 'Spouštím config API...\n';
-      });
-
-      if (_backendPath.isEmpty) {
-        setState(() {
-          _scriptOutput +=
-              'Backend path není nastaven. Nelze spustit config API.\n';
-        });
-        return;
-      }
-
-      // Kontrola, zda skript existuje
-      final scriptFile = File('$_backendPath/_start_config_android.sh');
-      if (!await scriptFile.exists()) {
-        setState(() {
-          _scriptOutput += 'Skript _start_config_android.sh nenalezen.\n';
-        });
-        return;
-      }
-
-      // Výpis obsahu adresáře před spuštěním
-      await _listDirectoryContents(_backendPath);
-
-      configApiProcess = await Process.start(
-        'bash',
-        ['$_backendPath/_start_config_android.sh'],
-        workingDirectory: _backendPath,
-        runInShell: true,
-      );
-
-      configApiProcess!.stdout.transform(utf8.decoder).listen((data) {
-        setState(() {
-          _scriptOutput += data;
-        });
-      });
-
-      configApiProcess!.stderr.transform(utf8.decoder).listen((data) {
-        setState(() {
-          _scriptOutput += 'Error: $data';
-        });
-      });
-
-      for (int i = 0; i < 10; i++) {
-        await Future.delayed(const Duration(seconds: 1));
-        try {
-          final response = await http
-              .get(Uri.parse('http://localhost:8090/api/config'))
-              .timeout(const Duration(seconds: 1));
-          if (response.statusCode == 200) {
-            setState(() {
-              _scriptOutput += 'Config API server je připraven.\n';
-            });
-            return;
-          }
-        } catch (_) {}
-      }
-
-      setState(() {
-        _scriptOutput += 'Config API server nebyl nalezen po 10s.\n';
-      });
-    } catch (e) {
-      setState(() {
-        _scriptOutput += 'Chyba při spouštění config API: $e\n';
-      });
-    }
-  }
-
+  // Spuštění backendu z dist složky
   Future<void> _runBackendScript() async {
     try {
       setState(() {
-        _scriptOutput += 'Starting Peer connection \n';
+        _scriptOutput += 'Starting Peer connection (dist)\n';
         _isRunning = true;
       });
 
-      if (_backendPath.isEmpty) {
+      if (_distBackendPath.isEmpty) {
         setState(() {
           _scriptOutput +=
-              'Backend path není nastaven. Nelze spustit peer connection.\n';
+              'Backend dist path není nastaven. Nelze spustit peer connection.\n';
           _isRunning = false;
         });
         return;
       }
 
-      // Kontrola, zda skript existuje
-      final scriptFile = File('$_backendPath/_start_app.sh');
-      if (!await scriptFile.exists()) {
+      // Kontrola, zda spustitelný soubor existuje
+      final appConsoleFile = File('$_distBackendPath/app_console');
+      if (!await appConsoleFile.exists()) {
         setState(() {
-          _scriptOutput += 'Skript _start_app.sh nenalezen.\n';
+          _scriptOutput += 'Spustitelný soubor app_console v dist nenalezen.\n';
           _isRunning = false;
         });
         return;
       }
 
-      pythonProcess = await Process.start('bash', [
-        '$_backendPath/_start_app.sh',
-      ], workingDirectory: _backendPath);
+      // Spuštění přímo ./app_console
+      pythonProcess = await Process.start(
+        '$_distBackendPath/app_console',
+        [],
+        workingDirectory: _distBackendPath,
+      );
 
       pythonProcess!.stdout.transform(utf8.decoder).listen((data) {
         setState(() {
@@ -555,18 +366,18 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretMobileApp> {
       _startConnectionCheck();
     } catch (e) {
       setState(() {
-        _scriptOutput += 'Error running script: $e\n';
+        _scriptOutput += 'Error running backend in dist: $e\n';
         _isRunning = false;
       });
     }
   }
 
   void _findBackendFolder() {
-    if (_backendPath.isNotEmpty) {
+    if (_distBackendPath.isNotEmpty) {
       _runBackendScript();
     } else {
       setState(() {
-        _scriptOutput += 'Backend path is not set.\n';
+        _scriptOutput += 'Backend dist path is not set.\n';
       });
     }
   }
@@ -621,7 +432,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretMobileApp> {
       pythonProcess = null;
       _isRunning = false;
     }
-
     if (configApiProcess != null) {
       print('Ukončuji Config API');
       configApiProcess!.kill();

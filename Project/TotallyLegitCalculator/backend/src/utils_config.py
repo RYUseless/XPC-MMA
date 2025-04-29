@@ -1,8 +1,23 @@
 import json
 import os
+import sys
+import binascii  # Přidal jsem import binascii, který byl v původním kódu použit, ale chyběl
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), '../config/config.json')
-BACKUP_PATH = os.path.join(os.path.dirname(__file__), '../config/backup.json')
+def get_app_dir():
+    """Vrací adresář, kde leží app.py nebo spustitelný soubor."""
+    if getattr(sys, 'frozen', False):
+        # Běží z PyInstaller EXE
+        return os.path.dirname(sys.executable)
+    else:
+        # Běží jako .py skript
+        # Pokud je tento soubor v src/, vrátí nadřazený adresář
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+APP_DIR = get_app_dir()
+CONFIG_DIR = os.path.join(APP_DIR, 'config')
+CONFIG_PATH = os.path.join(CONFIG_DIR, 'config.json')
+BACKUP_PATH = os.path.join(CONFIG_DIR, 'backup.json')
+
 ##TODO: dodelat if none config.json, tak reset
 ##TODO: nejake dalsi try catche
 
@@ -43,6 +58,7 @@ def update_config(key, value):
     config = load_config()
     # save to backup
     # TODO: udělat ještě check, ze existuje backup.json
+    os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(BACKUP_PATH, 'w') as f:
         json.dump(config, f, indent=4)
     config[key] = value
@@ -50,6 +66,7 @@ def update_config(key, value):
         json.dump(config, f, indent=4)
 
 def reset_config():
+    os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(CONFIG_PATH, 'w') as f:
         json.dump(DEFAULT_CONFIG, f, indent=4)
 
