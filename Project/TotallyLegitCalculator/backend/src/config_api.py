@@ -74,10 +74,11 @@ class Starter:
             return s.connect_ex(('localhost', port)) == 0
 
 
-    def kill_process_on_port(self, port):
+    @staticmethod
+    def kill_process_on_port(port):
         """Ukončí proces běžící na daném portu"""
         try:
-            # Pro Linux
+            # Pro Linux pouze
             subprocess.run(['fuser', '-k', f'{port}/tcp'], stderr=subprocess.DEVNULL)
             print_to_terminal(f"Ukončen proces na portu {port}")
             # Počkáme chvíli, aby se port uvolnil
@@ -92,7 +93,7 @@ class Starter:
         json_ok = self.json_util.check_config()
         if json_ok is False:
             print_to_terminal("There is a possible issue with this code or config.json")
-            exit(1)
+            sys.exit(1)
         # kontrola, pokud nejaka instance frčí na portu, kdyžtak kill!!!!!!
         if self.is_port_in_use(self.CONFIG_API_PORT):
             print_to_terminal(f"Port {self.CONFIG_API_PORT} je již používán, pokus o ukončení...")

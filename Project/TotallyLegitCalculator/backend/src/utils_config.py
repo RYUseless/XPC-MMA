@@ -26,6 +26,7 @@ class Metods:
         # todo, load keys from utils_crypto -- aes key gen in utils_crypto :)
         KEY_val = b'secretkey1234567'.hex()
         IV_val = b'initialvector123'.hex()
+        self.loop_val = 0
 
         self.DEFAULT_CONFIG = {
             "MY_PORT": 12345,
@@ -44,14 +45,14 @@ class Metods:
         """
         # Pokud config neexistuje → reset
         if not os.path.exists(self.CONFIG_PATH):
-            reset_config()
+            self.reset_config()
 
         try:
             with open(self.CONFIG_PATH, 'r') as f:
                 config = json.load(f)
         except (json.JSONDecodeError, ValueError):
             # Pokud JSON je poškozený nebo nevalidní, resetujeme ho
-            reset_config()
+            self.reset_config()
             with open(self.CONFIG_PATH, 'r') as f:
                 config = json.load(f)
 
@@ -59,10 +60,10 @@ class Metods:
 
 
     def update_config(self, key, value):
-        config = load_config()
+        config = self.load_config()
         # save to backup
         # TODO: udělat ještě check, ze existuje backup.json
-        os.makedirs(CONFIG_DIR, exist_ok=True)
+        os.makedirs(self.CONFIG_DIR, exist_ok=True)
         with open(self.BACKUP_PATH, 'w') as f:
             json.dump(config, f, indent=4)
         config[key] = value
@@ -71,7 +72,7 @@ class Metods:
 
 
     def reset_config(self):
-        os.makedirs(CONFIG_DIR, exist_ok=True)
+        os.makedirs(self.CONFIG_DIR, exist_ok=True)
         with open(self.CONFIG_PATH, 'w') as f:
             json.dump(self.DEFAULT_CONFIG, f, indent=4)
 
@@ -86,46 +87,55 @@ class Metods:
             "SHUTDOWN_MSG": str
         }
 
-        if not os.path.exists(self.CONFIG_PATH):
-            print("[!] config.json not found, resetting to default.")
-            # TODO: add create function, that creates config.json and the folder if needed
-            reset_config()
-            check_config()
-            return False
-
-        try:
-            with open(self.CONFIG_PATH, 'r') as f:
-                config = json.load(f)
-
-            for key, expected_type in required_keys.items():
-                if key not in config:
-                    print(f"[!] Missing key: {key}, resetting config.")
-                    reset_config()
-                    check_config()
-                    return False
-                if not isinstance(config[key], expected_type):
-                    print(f"[!] Invalid type for key: {key}, resetting config.")
-                    reset_config()
-                    # TODO: it goes to endles loop, fix later:
-                    value = check_config()
-                    if value is False:
-                        exit(0)
-                    print("key could not be restored, lmao?")
-                    return False
-
-            #  HEX formát a délka check
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
             try:
-                key_bytes = bytes.fromhex(config["KEY"])
-                iv_bytes = bytes.fromhex(config["IV"])
-                if len(key_bytes) != 16 or len(iv_bytes) != 16:
-                    raise ValueError("Invalid KEY/IV length")
-            except (ValueError, binascii.Error):
-                print("[!] KEY or IV is not valid hex or has wrong length. Resetting config.")
-                reset_config()
-                return False
+                # Kontrola existence souboru
+                if not os.path.exists(self.CONFIG_PATH):
+                    print(f"[!] Attempt {attempt}/{max_attempts}: config.json not found")
+                    self.reset_config()
+                    continue  # Znovu načte nově vytvořený config
 
-        except (json.JSONDecodeError, FileNotFoundError) as e:
-            print(f"[!] Failed to read config: {e}, resetting.")
-            reset_config()
-            return False  # big oopsie
+                # Načtení a validace obsahu
+                with open(self.CONFIG_PATH, 'r') as f:
+                    config = json.load(f)
+
+                # Kontrola povinných klíčů a typů
+                is_valid = True
+                for key, expected_type in required_keys.items():
+                    if key not in config:
+                        print(f"[!] Attempt {attempt}/{max_attempts}: Missing key {key}")
+                        is_valid = False
+                        break
+                    if not isinstance(config[key], expected_type):
+                        print(f"[!] Attempt {attempt}/{max_attempts}: Invalid type for {key}")
+                        is_valid = False
+                        break
+
+                # Kontrola formátu KEY/IV
+                if is_valid:
+                    try:
+                        key_bytes = bytes.fromhex(config["KEY"])
+                        iv_bytes = bytes.fromhex(config["IV"])
+                        if len(key_bytes) != 16 or len(iv_bytes) != 16:
+                            raise ValueError("Invalid length")
+                    except (ValueError, binascii.Error) as e:
+                        print(f"[!] Attempt {attempt}/{max_attempts}: Invalid crypto params - {e}")
+                        is_valid = False
+
+                # Pokud vše OK
+                if is_valid:
+                    return True
+
+                # Chyba - reset a nový pokus
+                print(f"[!] Attempt {attempt}/{max_attempts}: Resetting invalid config")
+                self.reset_config()
+
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"[!] Attempt {attempt}/{max_attempts}: File error - {e}")
+                self.reset_config()
+
+        print("[!] Failed to load valid config after 3 attempts")
+        return False
+
 
