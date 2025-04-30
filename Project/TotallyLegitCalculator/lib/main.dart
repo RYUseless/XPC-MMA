@@ -20,17 +20,18 @@ import 'desktop_app/Secret_desktop.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializace window_manager pouze na desktopu
+  // pouze pro desktop
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await wm.windowManager.ensureInitialized();
 
+    // velikost okna + center
     wm.WindowOptions windowOptions = const wm.WindowOptions(
       size: Size(400, 800),
       center: true,
       backgroundColor: Colors.transparent,
     );
 
-    wm.windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await wm.windowManager.waitUntilReadyToShow(windowOptions, () async {
       await wm.windowManager.show();
       await wm.windowManager.focus();
     });
@@ -54,7 +55,6 @@ class MyApp extends StatelessWidget {
         '/settings_mobile': (context) => const SettingsScreenMobile(),
       };
     } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      print("Spuštěno na desktopu. Zde bude desktopová verze kalkulačky.");
       homeWidget = const CalculatorScreenDesktop();
       routes = {
         '/secret_desktop': (context) => const TotallySecretApp(),
@@ -69,6 +69,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData.dark(),
       home: homeWidget,
       routes: routes,
+      debugShowCheckedModeBanner: false,
     );
   }
 }

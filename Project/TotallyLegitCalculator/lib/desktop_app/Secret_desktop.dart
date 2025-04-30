@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'Calculator_desktop.dart';
-//import 'Settings_desktop.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:flutter/foundation.dart' as foundation;
 
 // Provider pro API službu
 final apiServiceProvider = Provider((ref) => ApiService());
@@ -19,7 +20,6 @@ final messagesProvider = StateNotifierProvider<MessagesNotifier, List<Message>>(
   },
 );
 
-// Notifier pro zprávy
 class MessagesNotifier extends StateNotifier<List<Message>> {
   final ApiService _apiService;
   Timer? _refreshTimer;
@@ -29,7 +29,7 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
     _startRefreshTimer();
   }
 
-  Future<void> _loadInitialMessages() async {
+  Future _loadInitialMessages() async {
     final messages = await _apiService.getMessages();
     state = messages;
   }
@@ -44,17 +44,14 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
   }
 
   Future<bool> sendMessage(String text) async {
-    // Nejprve přidáme zprávu do UI pro okamžitou odezvu
     final newMessage = Message(
       text: text,
       timestamp: DateTime.now(),
       isSentByMe: true,
     );
     state = [...state, newMessage];
-    // Poté odešleme zprávu přes API
     final success = await _apiService.sendMessage(text);
     if (!success) {
-      // Pokud se odeslání nezdařilo, odstraníme zprávu z UI
       state =
           state
               .where(
@@ -79,7 +76,6 @@ class MessagesNotifier extends StateNotifier<List<Message>> {
   }
 }
 
-// API služba pro komunikaci s backendem
 class ApiService {
   final String baseUrl;
   ApiService({this.baseUrl = 'http://localhost:8080/api'});
@@ -134,7 +130,6 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
-          // Získáváme pouze zprávy od druhého uživatele
           return (data['messages'] as List)
               .map(
                 (msg) => Message(
@@ -193,27 +188,41 @@ class TotallySecretApp extends ConsumerStatefulWidget {
 }
 
 class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
-  // Proměnné pro uložení rozlišení -- placeholder, později získávat z pythonu
-  final int screenWidth = 2560; // Šířka obrazovky
-  final int screenHeight = 1440; // Výška obrazovky
+  final int screenWidth = 1920;
+  final int screenHeight = 1080;
   final TextEditingController _textController = TextEditingController();
   Timer? _connectionTimer;
-  // Proměnné pro backend inicializaci
   String _backendPath = '';
   String _scriptOutput = '';
   Process? pythonProcess;
-  Process? configApiProcess; // Nová proměnná pro config API proces
+  Process? configApiProcess;
   bool _isRunning = false;
-  bool _isInitializing = true; // Indikuje, zda jsme ve fázi inicializace
-  bool _connectionSuccessful = false; // Indikuje, zda bylo připojení úspěšné
-  bool _isDarkTheme = true; // Indikuje, zda je použit tmavý motiv
+  bool _isInitializing = true;
+  bool _connectionSuccessful = false;
+  bool _isDarkTheme = true;
+  bool _emojiShowing = false;
+  final FocusNode _focusNode = FocusNode();
+
+  final ScrollController _scrollController = ScrollController();
+  // scroll constant
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _setWindowSize();
-      _startConfigApi(); // Spustíme config API při startu aplikace
+      _startConfigApi();
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
+
+    FocusManager.instance.addListener(() {
+      if (FocusManager.instance.primaryFocus?.context?.widget
+          is! EditableText) {
+        _focusNode.requestFocus();
+      }
     });
   }
 
@@ -222,13 +231,10 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       setState(() {
         _scriptOutput += 'Spouštím config API...\n';
       });
-
-      // Najdi backend složku (zůstává, jak máš)
       final currentDir = Directory.current;
       List<String> possiblePaths = [
         '${currentDir.path}/backend',
         '${currentDir.path}/../backend',
-        '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend',
       ];
       for (String path in possiblePaths) {
         final dir = Directory(path);
@@ -243,28 +249,22 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
         });
         return;
       }
-
-      // Spusť přímo binárku config_api
       final configApiPath = '$_backendPath/dist/config_api';
       configApiProcess = await Process.start(
         configApiPath,
         [],
         workingDirectory: '$_backendPath/dist',
       );
-
       configApiProcess!.stdout.transform(utf8.decoder).listen((data) {
         setState(() {
           _scriptOutput += '[config_api] $data';
         });
       });
-
       configApiProcess!.stderr.transform(utf8.decoder).listen((data) {
         setState(() {
           _scriptOutput += '[config_api ERROR] $data';
         });
       });
-
-      // Počkej na start serveru (zkus 10s)
       for (int i = 0; i < 10; i++) {
         await Future.delayed(const Duration(seconds: 1));
         try {
@@ -279,7 +279,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
           }
         } catch (_) {}
       }
-
       setState(() {
         _scriptOutput += 'Config API server nebyl nalezen po 10s.\n';
       });
@@ -290,27 +289,23 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
     }
   }
 
-  Future<void> _setWindowSize() async {
-    // Nastavení velikosti okna na rozlišení displeje
+  Future _setWindowSize() async {
     await windowManager.setSize(
       Size(screenWidth.toDouble(), screenHeight.toDouble()),
     );
   }
 
-  Future<void> _resizeToOriginal() async {
+  Future _resizeToOriginal() async {
     await windowManager.setSize(const Size(400, 800));
   }
 
   void _findBackendFolder() {
     try {
-      // Zjištění aktuálního pracovního adresáře
       final currentDir = Directory.current;
       print('Aktuální pracovní adresář: ${currentDir.path}');
-      // Zkusíme najít backend složku různými způsoby
       List<String> possiblePaths = [
         '${currentDir.path}/backend',
         '${currentDir.path}/../backend',
-        '/home/ryuseless/Git/Github/XPC-MMA/Project/TotallyLegitCalculator/backend',
       ];
       for (String path in possiblePaths) {
         final dir = Directory(path);
@@ -321,39 +316,14 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
           break;
         }
       }
-      // Pokud jsme nenašli backend složku, zkusíme ji najít pomocí příkazu find
       if (_backendPath.isEmpty) {
-        _findBackendUsingCommand();
-      }
-    } catch (e) {
-      setState(() {
-        _scriptOutput += 'Error finding backend folder: $e\n';
-      });
-    }
-  }
-
-  Future<void> _findBackendUsingCommand() async {
-    try {
-      final result = await Process.run('find', [
-        '/home',
-        '-name',
-        'TotallyLegitCalculator',
-        '-type',
-        'd',
-      ]);
-      if (result.stdout.toString().isNotEmpty) {
-        final projectPath = result.stdout.toString().trim().split('\n').first;
-        _backendPath = '$projectPath/backend';
-        setState(() {});
-        _runBackendScript();
-      } else {
         setState(() {
-          _scriptOutput += 'Backend folder not found using find command\n';
+          _scriptOutput += 'Backend folder not found!\n';
         });
       }
     } catch (e) {
       setState(() {
-        _scriptOutput += '!!! Error using find command: $e\n !!!';
+        _scriptOutput += 'Error finding backend folder: $e\n';
       });
     }
   }
@@ -386,26 +356,22 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       try {
         final response = await http
             .get(Uri.parse('http://localhost:8080/api/status'))
-            .timeout(Duration(seconds: 2));
+            .timeout(Duration(seconds: 1));
         if (response.statusCode == 200) {
-          // API je připraveno, můžeme přejít do chat režimu
           _connectionTimer?.cancel();
           setState(() {
             _connectionSuccessful = true;
             _scriptOutput += '=== PEER CONNECTED SUCESFULLY ===\n';
           });
         }
-      } catch (e) {
-        // API ještě není připraveno, pokračujeme v kontrole
-      }
+      } catch (e) {}
     });
-    // Nastavíme timeout pro případ, že se API nepodaří spustit
-    Future.delayed(Duration(seconds: 30), () {
+    Future.delayed(Duration(seconds: 600), () {
       if (!_connectionSuccessful) {
         _connectionTimer?.cancel();
         setState(() {
           _scriptOutput +=
-              'Backend initialization timeout. Please check the logs.\n';
+              '=== Backend initialization timeout. There is no peer avaiable ===.\n';
         });
       }
     });
@@ -435,7 +401,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       pythonProcess = null;
       _isRunning = false;
     }
-
     if (configApiProcess != null) {
       print('Ukončuji Config API');
       configApiProcess!.kill();
@@ -443,13 +408,10 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
     }
   }
 
-  Future<void> _sendShutdownAndGoBack() async {
+  Future _sendShutdownAndGoBack() async {
     try {
-      // Odeslání zprávy ==SHUTDOWN== před návratem do coverApp
       await ref.read(apiServiceProvider).sendShutdownMessage();
-      // Krátké čekání, aby se zpráva stihla odeslat
       await Future.delayed(Duration(milliseconds: 500));
-      // Ukončení Python backendu
       _stopPythonBackend();
     } catch (e) {
       print('Error sending shutdown message: $e');
@@ -464,14 +426,26 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
     }
   }
 
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   void _sendMessage() {
-    final text = _textController.text.trim(); // Oříznout text
-    if (text.isEmpty) return; // Kontrola prázdného textu
+    final text = _textController.text.trim();
+    if (text.isEmpty) return;
     ref.read(messagesProvider.notifier).sendMessage(text).then((success) {
       if (success) {
-        _textController.clear(); // Vyčistit textové pole po odeslání
+        _textController.clear();
+        _scrollToBottom(); // scroll dolu -- pokus issues -- pryc
       } else {
-        // Zobrazit chybovou hlášku
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Nepodařilo se odeslat zprávu')));
@@ -500,17 +474,30 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
   void dispose() {
     _connectionTimer?.cancel();
     _stopPythonBackend();
+    _scrollController.dispose(); // scroll release, kdyby nahodou issues
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  // EMOJI FONT
+  String? _getEmojiFontFamily() {
+    if (foundation.defaultTargetPlatform == TargetPlatform.windows) {
+      return 'Segoe UI Emoji';
+    } else if (foundation.defaultTargetPlatform == TargetPlatform.linux) {
+      return 'Noto Color Emoji';
+    } else if (foundation.defaultTargetPlatform == TargetPlatform.macOS) {
+      return 'Apple Color Emoji';
+    } else {
+      return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Pokud jsme ve fázi inicializace, zobrazíme obrazovku s konzolí
     if (_isInitializing) {
       return Scaffold(
         body: Column(
           children: [
-            // Konzole nahoře
             Expanded(
               child: Container(
                 padding: EdgeInsets.all(16),
@@ -577,7 +564,6 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
                 ),
               ),
             ),
-            // Tmavá lišta s tlačítky dole
             Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -629,16 +615,16 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       );
     }
 
-    // Pokud jsme ve fázi chatu, zobrazíme chat obrazovku
     final messages = ref.watch(messagesProvider);
-    // Seřazení zpráv podle času (nejnovější nahoře)
-    final sortedMessages = List<Message>.from(messages)
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final sortedMessages = List.from(messages)
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    // --- scroll na konec pri nove zprave  ---
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
     return Scaffold(
       body: Column(
-        children: <Widget>[
-          // Horní lišta
+        children: [
           Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -687,17 +673,20 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
               ],
             ),
           ),
-          // Prostřední šedý obdélník
           Expanded(
             flex: 10,
             child: Container(
               width: double.infinity,
               color: _isDarkTheme ? Colors.grey[900] : Colors.grey[300],
               child: ListView.builder(
-                reverse: true,
+                controller: _scrollController,
                 itemCount: sortedMessages.length,
                 itemBuilder: (context, index) {
                   final message = sortedMessages[index];
+                  final emojiOnly = RegExp(
+                    r'^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}|\p{Emoji_Component}|\s)+$',
+                    unicode: true,
+                  ).hasMatch(message.text);
                   return Align(
                     alignment:
                         message.isSentByMe
@@ -708,13 +697,15 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color:
-                            message.isSentByMe
-                                ? (_isDarkTheme
-                                    ? Colors.blue[700]
-                                    : Colors.blue[400])
-                                : (_isDarkTheme
-                                    ? Colors.grey[700]
-                                    : Colors.grey[400]),
+                            emojiOnly
+                                ? Colors.transparent
+                                : (message.isSentByMe
+                                    ? (_isDarkTheme
+                                        ? Colors.blue[700]
+                                        : Colors.blue[400])
+                                    : (_isDarkTheme
+                                        ? Colors.grey[700]
+                                        : Colors.grey[400])),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Column(
@@ -726,13 +717,15 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
                           Text(
                             message.text,
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: emojiOnly ? 36 : 16,
                               color:
                                   _isDarkTheme ? Colors.white : Colors.black87,
+                              fontFamily:
+                                  emojiOnly ? _getEmojiFontFamily() : null,
                             ),
                           ),
                           Text(
-                            "${message.timestamp.hour}:${message.timestamp.minute}",
+                            "${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}",
                             style: TextStyle(
                               fontSize: 12,
                               color:
@@ -749,73 +742,120 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
               ),
             ),
           ),
-          // Spodní černý obdélník
           Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             color: _isDarkTheme ? Colors.black : Colors.grey[200],
-            child: Row(
+            child: Column(
               children: [
-                // Ikona pro vkládání fotek
-                IconButton(
-                  icon: Icon(
-                    Icons.add_photo_alternate,
-                    color: _isDarkTheme ? Colors.white : Colors.black87,
-                    size: 28,
-                  ),
-                  onPressed: () {}, // Zatím bez funkce
-                ),
-                // Textový vstup
-                Expanded(
-                  child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 8),
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: _isDarkTheme ? Colors.grey[800] : Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color:
-                            _isDarkTheme
-                                ? Colors.grey[600]!
-                                : Colors.grey[300]!,
-                      ),
-                    ),
-                    child: TextField(
-                      controller: _textController,
-                      style: TextStyle(
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.add_photo_alternate,
                         color: _isDarkTheme ? Colors.white : Colors.black87,
+                        size: 28,
                       ),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        hintText: "Type a message...",
-                        hintStyle: TextStyle(
-                          color:
-                              _isDarkTheme
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
+                      onPressed: () {},
+                    ),
+                    Expanded(
+                      child: Container(
+                        margin: EdgeInsets.symmetric(horizontal: 8),
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _isDarkTheme ? Colors.grey[800] : Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color:
+                                _isDarkTheme
+                                    ? Colors.grey[600]!
+                                    : Colors.grey[300]!,
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _textController,
+                          focusNode: _focusNode,
+                          autofocus: true,
+                          style: TextStyle(
+                            color: _isDarkTheme ? Colors.white : Colors.black87,
+                          ),
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: "Type a message...",
+                            hintStyle: TextStyle(
+                              color:
+                                  _isDarkTheme
+                                      ? Colors.grey[400]
+                                      : Colors.grey[600],
+                            ),
+                          ),
+                          onSubmitted: (text) {
+                            if (text.trim().isNotEmpty) {
+                              _sendMessage();
+                            }
+                          },
+                          onTap: () {
+                            setState(() {
+                              _emojiShowing = false;
+                            });
+                          },
                         ),
                       ),
-                      onSubmitted: (text) {
-                        if (text.trim().isNotEmpty) {
-                          _sendMessage();
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.emoji_emotions,
+                        color: _isDarkTheme ? Colors.white : Colors.black87,
+                        size: 28,
+                      ),
+                      onPressed: () {
+                        if (_emojiShowing) {
+                          _focusNode.requestFocus();
+                        } else {
+                          _focusNode.unfocus();
                         }
+                        setState(() {
+                          _emojiShowing = !_emojiShowing;
+                        });
                       },
                     ),
-                  ),
+                    IconButton(
+                      icon: Icon(Icons.send, color: Colors.blue, size: 28),
+                      onPressed: _sendMessage,
+                    ),
+                  ],
                 ),
-                // Ikona pro emotikony
-                IconButton(
-                  icon: Icon(
-                    Icons.emoji_emotions,
-                    color: _isDarkTheme ? Colors.white : Colors.black87,
-                    size: 28,
+                Offstage(
+                  offstage: !_emojiShowing,
+                  child: SizedBox(
+                    height: 256,
+                    child: EmojiPicker(
+                      textEditingController: _textController,
+                      onEmojiSelected: (category, emoji) {
+                        if (_textController.text.trim().isEmpty) {
+                          _textController.text = emoji.emoji;
+                          _sendMessage();
+                          _textController.clear();
+                        }
+                      },
+                      config: Config(
+                        height: 256,
+                        emojiViewConfig: EmojiViewConfig(
+                          emojiSizeMax:
+                              28 *
+                              (foundation.defaultTargetPlatform ==
+                                      TargetPlatform.iOS
+                                  ? 1.2
+                                  : 1.0),
+                        ),
+                        skinToneConfig: const SkinToneConfig(),
+                        categoryViewConfig: const CategoryViewConfig(),
+                        bottomActionBarConfig: const BottomActionBarConfig(),
+                        searchViewConfig: const SearchViewConfig(),
+                        checkPlatformCompatibility: true,
+                      ),
+                    ),
                   ),
-                  onPressed: () {}, // Zatím bez funkce
-                ),
-                // Ikona pro odeslání zprávy
-                IconButton(
-                  icon: Icon(Icons.send, color: Colors.blue, size: 28),
-                  onPressed: _sendMessage,
                 ),
               ],
             ),

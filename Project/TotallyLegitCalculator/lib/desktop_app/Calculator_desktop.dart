@@ -88,9 +88,12 @@ class _CalculatorScreenDesktopState
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
 
+    final sideWidth = screenSize.width * 0.3;
+    final calculatorWidth = screenSize.width * 0.4;
+    final calculatorHeight = screenSize.height;
+
     return Scaffold(
       body: Container(
-        //color: Colors.grey[300], // barva pozadi
         child:
             isMaximized
                 ? Row(
@@ -98,35 +101,36 @@ class _CalculatorScreenDesktopState
                   children: [
                     // Levý obdélník s obrázkem
                     Container(
-                      width: (screenSize.width - 400) / 2,
+                      width: sideWidth,
+                      height: calculatorHeight,
                       decoration: const BoxDecoration(
                         image: DecorationImage(
-                          image: AssetImage(
-                            "assets/images/reklama1.gif",
-                          ), // Ujistěte se, že cesta je správná
+                          image: AssetImage("assets/images/reklama1.gif"),
                           fit: BoxFit.cover,
                         ),
                       ),
                     ),
+                    // Kalkulačka uprostřed
                     Container(
-                      width: 400, // Šířka kalkulačky je 400px
+                      width: calculatorWidth,
+                      height: calculatorHeight,
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: Colors.black, // Barva ohraničení
-                          width: 2, // Šířka ohraničení
-                        ),
+                        border: Border.all(color: Colors.black, width: 2),
                       ),
-                      child: _buildCalculator(context, 400, screenSize.height),
+                      child: _buildCalculator(
+                        context,
+                        calculatorWidth,
+                        calculatorHeight,
+                      ),
                     ),
                     // Pravý obdélník s obrázkem
                     Container(
-                      width: (screenSize.width - 400) / 2,
+                      width: sideWidth,
+                      height: calculatorHeight,
                       decoration: const BoxDecoration(
                         image: DecorationImage(
-                          image: AssetImage(
-                            "assets/images/reklama2.png",
-                          ), // Ujistěte se, že cesta je správná
-                          fit: BoxFit.fill, //orig cover
+                          image: AssetImage("assets/images/reklama2.png"),
+                          fit: BoxFit.fill,
                         ),
                       ),
                     ),
@@ -134,9 +138,7 @@ class _CalculatorScreenDesktopState
                 )
                 : Center(
                   child: SizedBox(
-                    width:
-                        screenSize
-                            .width, // Roztáhneme kalkulačku na celou obrazovku
+                    width: screenSize.width,
                     child: _buildCalculator(
                       context,
                       screenSize.width,
@@ -422,45 +424,5 @@ class _CalculatorScreenDesktopState
     } else {
       return result.toStringAsPrecision(3);
     }
-  }
-
-  @override
-  void onWindowClose() {
-    // TODO: implement onWindowClose
-  }
-
-  @override
-  void onWindowFocus() {
-    // TODO: implement onWindowFocus
-  }
-
-  @override
-  void onWindowMoved() {
-    // TODO: implement onWindowMoved
-  }
-
-  @override
-  void onWindowBlur() {
-    // TODO: implement onWindowBlur
-  }
-
-  @override
-  void onWindowDocked() {
-    // TODO: implement onWindowDocked
-  }
-
-  @override
-  void onWindowUndocked() {
-    // TODO: implement onWindowUndocked
-  }
-
-  @override
-  void onWindowMinimize() {
-    // TODO: implement onWindowMinimize
-  }
-
-  @override
-  void onWindowRestored() {
-    // TODO: implement onWindowRestored
   }
 }
