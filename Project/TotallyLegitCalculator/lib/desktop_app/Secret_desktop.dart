@@ -353,7 +353,7 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
       }
     } catch (e) {
       setState(() {
-        _scriptOutput += 'Error using find command: $e\n';
+        _scriptOutput += '!!! Error using find command: $e\n !!!';
       });
     }
   }
@@ -371,21 +371,11 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
         [],
         workingDirectory: '$_backendPath/dist',
       );
-      pythonProcess!.stdout.transform(utf8.decoder).listen((data) {
-        setState(() {
-          _scriptOutput += 'Output: $data\n';
-        });
-      });
-      pythonProcess!.stderr.transform(utf8.decoder).listen((data) {
-        setState(() {
-          _scriptOutput += 'API INFO: $data\n';
-        });
-      });
       await Future.delayed(Duration(seconds: 2));
       _startConnectionCheck();
     } catch (e) {
       setState(() {
-        _scriptOutput += 'Error running app: $e\n';
+        _scriptOutput += ' !!! Error running app: $e !!!!\n';
         _isRunning = false;
       });
     }
@@ -402,7 +392,7 @@ class _TotallySecretAppState extends ConsumerState<TotallySecretApp> {
           _connectionTimer?.cancel();
           setState(() {
             _connectionSuccessful = true;
-            _scriptOutput += 'Backend API is running and ready!\n';
+            _scriptOutput += '=== PEER CONNECTED SUCESFULLY ===\n';
           });
         }
       } catch (e) {
