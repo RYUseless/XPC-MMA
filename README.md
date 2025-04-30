@@ -19,6 +19,7 @@
 
 ### How to install:
 - clone this repo
+- it is recomended to reinstall the flutter enviroment stuff(virtual spaces etc) -- execute: ``source setup/linux_setup.sj`` -- logically inside TotatallyLegitCalculator folder, it should install everything needed for all of the OSdespite the linux name :).
 - compile the backend apps as shown up  ``source <path to scripts/ folder, or if you are inside, dont do this at all>_compile_apps.sh``
 - go to dist and run **app_console** for cli peer to peer connection (only inside of one network, or if you have fowarding etc implemented -- than it works out too)
 - for flutter, it is recomended to open vs code, and run it from there -- there may be some issues, there may be not, i did some testing on my two PCs -- but not sure if it is even able to do something.
