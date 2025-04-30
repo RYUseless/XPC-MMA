@@ -5,14 +5,22 @@
 
 
 ## MPC-MMA project → "TotallyLegitCalculator"
-- Calculator, that can run on both desktop, and phone devices (hopefully) → only a coverApp for the chatting app.
-- After executing custom lets say "code" → ``69`` + pressing ``D`` for longer than 3 seconds will bring up secret chatting app.
-- This chatting app should have end-end encryption and other security options, so the stuff that are sent via network should not be easily decripted even if sent via HTTP.
-- messages should delete after like 5 minus after they are seen.
-- **!!!** curently, I do not intend to run it outside my network **!!!**
+> in /project folder
+- Chatting application hidden behind innocent calculator
+- TLS 1.3, AES-CBC encryption, derivate cipher for aes key commingsoonTM
+- supported on linux for now
+- android support will be recovered later on
 
-- more info will apear hopefully soon.
+- in backend/scripts are scripts for compaling implemented scr codes → execute vith ``source <path or whatever/>_compile_apps.sh``
+- compiled apps should be in backend/dist/* -- api for peer_ssl, api for config and app_console, which is console standalone of peer ssl connection → simply run vith ``./app_console``
 
-- Whole project is me kinda freestyling, because I do like ciphers, but i really hate frontend (I somehow keep doing it tho).
-- currently developing only on linux, and testing on andorid emulators :).
-- For linux setup, in ``/setup`` folder is ```setup_linux.sh``` script, that should set up app for linux :)
+- There are for now plenty of untinkered spots -- will continue primarily on backend -- derivate cipher and schnorr algorithm
+- !!! I cast "works on my machine" -- there are plenty of issues with the C backend for flutter and linux scaling, so as it is for now, i am unable to make it more unversal
+
+### How to install:
+- clone this repo
+- compile the backend apps as shown up  ``source <path to scripts/ folder, or if you are inside, dont do this at all>_compile_apps.sh``
+- go to dist and run **app_console** for cli peer to peer connection (only inside of one network, or if you have fowarding etc implemented -- than it works out too)
+- for flutter, it is recomended to open vs code, and run it from there -- there may be some issues, there may be not, i did some testing on my two PCs -- but not sure if it is even able to do something.
+
+**STILL IN DEVELOPMENT -- NOW IN STAGE FOR XPC-MMA PROJECT, AFTER THAT, I WILL BASICALLY REDO THIS FROM THE GROUND -- some new security things i would like to try etc.**
