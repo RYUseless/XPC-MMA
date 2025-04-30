@@ -13,7 +13,7 @@ cd "$BACKEND_DIR" || exit 1
 
 # i guess if the src exists, the .py in it should too
 if [[ -d ./src && -f ./app.py && -f ./app_console.py && ./src/config_api.py && -f ./_activate_venv.sh ]]; then
-    echo "ULTRA MIGA ŠMIGA"
+    echo "=== ULTRA MIGA ŠMIGA ==="
     source ./_venv_create.sh
     pyinstaller -F --paths=src/ --paths=config/ --paths=.cert/ --paths=.old_mess/  app.py || echo "what"
     pyinstaller -F --paths=src/ --paths=config/ --paths=.cert/ --paths=.old_mess/  app_console.py || echo "what2"

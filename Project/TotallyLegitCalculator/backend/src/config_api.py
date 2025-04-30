@@ -5,7 +5,6 @@ import sys
 import os
 import socket
 import subprocess
-
 import utils_config as js_utl
 
 # Funkce pro výpis do terminálu, který bude okamžitě viditelný v Dart
@@ -13,10 +12,13 @@ def print_to_terminal(message):
     print(f"\n=== {message} ===", flush=True)
     sys.stdout.flush()
 
-
 class ConfigAPIHandler(BaseHTTPRequestHandler):
-    def _set_headers(self, content_type="application/json"):
+    def __init__(self, *args, **kwargs):
+        # Inicializace json_util při vytvoření instance
         self.json_util = js_utl.Metods()
+        super().__init__(*args, **kwargs)
+
+    def _set_headers(self, content_type="application/json"):
         self.send_response(200)
         self.send_header('Content-type', content_type)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -42,9 +44,19 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             try:
                 config_data = json.loads(post_data.decode())
+                # Oprava: načíst config jednou, upravit vše, uložit jedním zápisem
+                config = self.json_util.load_config()
+                # Záloha původního configu
+                os.makedirs(self.json_util.CONFIG_DIR, exist_ok=True)
+                with open(self.json_util.BACKUP_PATH, 'w') as f:
+                    json.dump(config, f, indent=4)
+                # Aktualizace všech klíčů
                 for key in ['MY_PORT', 'PEER_IP', 'OWN_IP', 'SHUTDOWN_MSG']:
                     if key in config_data:
-                        self.json_util.update_config(key, config_data[key])
+                        config[key] = config_data[key]
+                # Zápis zpět
+                with open(self.json_util.CONFIG_PATH, 'w') as f:
+                    json.dump(config, f, indent=4)
                 self._set_headers()
                 self.wfile.write(json.dumps({"status": "success"}).encode())
                 print_to_terminal(f"Config updated: {config_data}")
@@ -60,19 +72,16 @@ class ConfigAPIHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
-
 class Starter:
     def __init__(self):
         self.lmao = "lmao"
         self.json_util = js_utl.Metods()
         self.CONFIG_API_PORT = 8090
 
-
     def is_port_in_use(self, port):
         """Zkontroluje, zda je port již používán"""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(('localhost', port)) == 0
-
 
     @staticmethod
     def kill_process_on_port(port):
@@ -88,7 +97,6 @@ class Starter:
         except:
             return False
 
-
     def run_config_api(self):
         json_ok = self.json_util.check_config()
         if json_ok is False:
@@ -100,13 +108,10 @@ class Starter:
             if not self.kill_process_on_port(self.CONFIG_API_PORT):
                 print_to_terminal(f"Nelze ukončit proces na portu {self.CONFIG_API_PORT}")
                 sys.exit(1)
-
         # Vytvoříme server s nastavením SO_REUSEADDR
         server = HTTPServer(('localhost', self.CONFIG_API_PORT), ConfigAPIHandler)
         server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
         print_to_terminal(f"Backend vrtual enviroment setup completed, you may connect to PEER now")
-
         try:
             server.serve_forever()
         except KeyboardInterrupt:
@@ -120,3 +125,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
